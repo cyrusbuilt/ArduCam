@@ -11,3 +11,8 @@
 *.lai
 *.la
 *.a
+
+# VS stuff.
+*.sdf
+*.opensdf
+*.suo
