@@ -1,0 +1,11 @@
+<VisualMicro>
+  <Program Name="ArduCam" Ext=".ino" Location="D:\Dev\Arduino\ArduCam">
+    <Compile IsCompiled="0" ConfigurationName="Debug" StopOnError="True" OptimiseLibs="True" OptimiseCore="True" BuildPath="C:\Users\chris.brunner\AppData\Local\VMicro\Arduino\Builds\ArduCam\uno" IncludeDebug="0" IncludesDebug="0" SketchName="ArduCam" ProjectMacrosHaveChanged="1" McuMacrosHaveChanged="1" CompilerErrors="1" />
+    <Platform Name="Arduino">
+      <Board Name="uno" Description="Arduino Uno" CoreFolder="C:\Program Files (x86)\Arduino\arduino-1.0.3\hardware\arduino\cores\arduino" VariantFullPath="C:\Program Files (x86)\Arduino\arduino-1.0.3\hardware\arduino\variants\standard" McuIdePath="C:\Program Files (x86)\Arduino\arduino-1.0.3" name="Arduino Uno" upload.protocol="arduino" upload.maximum_size="32256" upload.speed="115200" bootloader.low_fuses="0xff" bootloader.high_fuses="0xde" bootloader.extended_fuses="0x05" bootloader.path="optiboot" bootloader.file="optiboot_atmega328.hex" bootloader.unlock_bits="0x3F" bootloader.lock_bits="0x0F" build.mcu="atmega328p" build.f_cpu="16000000L" build.core="arduino" build.variant="standard" runtime.ide.path="C:\Program Files (x86)\Arduino\arduino-1.0.3" build.system.path="C:\Program Files (x86)\Arduino\arduino-1.0.3\hardware\arduino\system" software="ARDUINO" runtime.ide.version="103" build.core.vmresolved="C:\Program Files (x86)\Arduino\arduino-1.0.3\hardware\arduino\cores\arduino" build.core.parentfolder.vmresolved="C:\Program Files (x86)\Arduino\arduino-1.0.3\hardware\arduino\cores" build.core.coresparentfolder.vmresolved="C:\Program Files (x86)\Arduino\arduino-1.0.3\hardware\arduino" vm.core.include="arduino.h" vm.boardsource.path="C:\Program Files (x86)\Arduino\arduino-1.0.3\hardware\arduino" vm.boardsource.name="boards.txt" vm.platformname.name="" build.variant.vmresolved="C:\Program Files (x86)\Arduino\arduino-1.0.3\hardware\arduino\variants\standard" />
+    </Platform>
+    <VCCodeModel>
+      <VCCodeMacros />
+    </VCCodeModel>
+  </Program>
+</VisualMicro>

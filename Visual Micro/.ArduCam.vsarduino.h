@@ -32,6 +32,10 @@ void setNetworkDefaults();
 void readConfig();
 void initNetwork();
 void initServos();
+void sendHttpOkHeader();
+void respondWith404();
+void respondWithPage(const char *pagePath);
+void moveServos(Coordinates direction);
 //
 //
 

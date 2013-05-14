@@ -22,8 +22,6 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 
-
-
 #include <Servo.h>
 #include <IniFile.h>
 #include <SPI.h>
@@ -58,11 +56,20 @@
 // Global constants.
 const byte MAC[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 const char *CONFIG_FILENAME = "/config.ini";
+const char *INDEX_PAGE_PATH = "/web/index.htm";
+const char *CONFIG_PAGE_PATH = "/web/config.htm";
+const char *E404_PAGE_PATH = "/web/404.htm";
 const size_t BUFFERLEN = 80;
 const IPAddress DEFAULT_IP(192, 168, 1, 240);
 const IPAddress DEFAULT_GW(192, 168, 1, 1);
 const IPAddress DEFAULT_SN(255, 255, 255, 0);
 const IPAddress DEFAULT_DNS = DEFAULT_GW;
+const int XPOS_UPPER_LIMIT = 95;
+const int XPOS_LOWER_LIMIT = 5;
+const int YPOS_UPPER_LIMIT = 135;
+const int YPOS_LOWER_LIMIT = 55;
+const int XPOS_CENTER = 50;
+const int YPOS_CENTER = 100;
 
 // Config file constants
 const char *CONFIG_SECTION_MAIN = "Main";
@@ -78,9 +85,35 @@ IPAddress gateway;
 IPAddress subnetmask;
 IPAddress dns;
 EthernetServer server;
-int serverPort = DEFAULT_SERVER_PORT;
+EthernetClient client;
 Servo servoX;
 Servo servoY;
+int serverPort = DEFAULT_SERVER_PORT;
+int requestnum = 0;
+int xpos = XPOS_CENTER;
+int ypos = YPOS_CENTER;
+
+/**
+ * A structure for holding X and Y-axis coordinates.
+ * @member nXpos The X-axis position.
+ * @member nYpos The Y-axis position.
+ */
+typedef struct
+{
+	int nCmd;
+	int nXpos;
+	int nYpos;
+	bool operator ==(const Coordinates &rhs) const {
+		return ((rhs.nXpos == nXpos) && (rhs.nYpos == nYpos) && (rhs.nCmd == nCmd));
+	};
+} Coordinates;
+
+// Movement directions.
+Coordinates up;
+Coordinates down;
+Coordinates center;
+Coordinates left;
+Coordinates right;
 
 /**
  * Prints the description of the associated error.
@@ -130,6 +163,7 @@ void printSDErrorMessage(uint8_t e, bool eol = true) {
 
 /**
  * Flashes the status LED once per second to indicate an SD card error occurred.
+ * This method never returns as it runs in an endless loop.
  */
 void statusLedSDErrorFlash() {
 	while (1) {
@@ -316,9 +350,187 @@ void initServos() {
 }
 
 /**
+ * Send a normal OK (200) response header to the client.
+ */
+void sendHttpOkHeader() {
+	if (client) {
+		String header = "HTTP/1.0 200 OK\nServer: arduino\nContent-Type: text/html\n\n";
+		client.println(header);
+	}
+}
+
+/**
+ * Sends a 404 (page not found) response to the client. This sends the 404
+ * response header, then attempts to read the 404 content page and send it
+ * to the client. If the page does not exist, then constructs an html string
+ * making up (very) basic content of a 404 response page and sends it instead.
+ */
+void respondWith404() {
+	if (client) {
+		// Send the 404 header.
+		String header = "HTTP/1.1 404 Not Found\nServer: arduino\nContent-Type: text/html\n\n";
+		client.println(header);
+
+		// If the 404 page exists, then read it in and send that. Otherwise, send a
+		// basic content string. NOTE: For some silly reason, the SD.open() method
+		// defines the filename param as a const char*, but the exists() method defines
+		// it as just a char*. So we use an ugly hack to cast a const char* to a char*
+		// in order to do the check. Since the exists() method never modifies the
+		// value of the param, I don't understand why it isn't a const just like the
+		// other methods..... *sigh*
+		String content = "";
+		if (SD.exists(const_cast<char*>(E404_PAGE_PATH))) {
+			File f = SD.open(E404_PAGE_PATH);
+			if (f) {
+				while (f.available()) {
+					content.concat(f.read());
+				}
+				f.close();
+			}
+		}
+		else {
+			content = "<html><head><title>404</title></head><body><h1>404: Page not found.</h1></body></html>";
+		}
+
+		client.println(content);
+		client.flush();
+	}
+}
+
+/**
+ * Reponds to the client by sending a 200 (ok) along with the specified page.
+ * If the specified page does not exist, then responds with a 404 (page not
+ * found) instead.
+ * @param pagePath The path to the webpage to send to the client.
+ */
+void respondWithPage(const char *pagePath) {
+	if (!SD.exists(const_cast<char*>(pagePath))) {
+		respondWith404();
+		return;
+	}
+
+	sendHttpOkHeader();
+	if (client) {
+		File f = SD.open(pagePath);
+		if (f) {
+			String content = "";
+			while (f.available()) {
+				content.concat(f.read());
+			}
+
+			f.close();
+			client.println(content);
+			client.flush();
+		}
+	}
+}
+
+/**
+ * Moves servos in the specified direction (coordinates).
+ * @param direction The direction to move in.
+ */
+void moveServos(Coordinates direction) {
+	// Moving up.
+	if (direction == up) {
+		if ((ypos + up.nYpos) > YPOS_LOWER_LIMIT) {
+			ypos += up.nYpos;
+#ifdef DEBUG
+			Serial.println("Panning up...");
+#endif
+		}
+#ifdef DEBUG
+		else {
+			Serial.println("ERROR: Upper limit reached.");
+		}
+#endif
+	}
+	else if (direction == down) {
+		// Moving down.
+		if ((ypos + down.nYpos) < YPOS_UPPER_LIMIT) {
+			ypos += down.nYpos;
+#ifdef DEBUG
+			Serial.println("Panning down...");
+#endif
+		}
+#ifdef DEBUG
+		else {
+			Serial.println("ERROR: Down limit reached.");
+		}
+#endif
+	}
+	else if (direction == center) {
+		// Moving to center pos.
+		xpos = center.nXpos;
+		ypos = center.nYpos;
+#ifdef DEBUG
+		Serial.println("Centering webcam...");
+#endif
+	}
+	else if (direction == left) {
+		// Moving left.
+		if ((xpos + left.nXpos) < XPOS_UPPER_LIMIT) {
+			xpos += left.nXpos;
+#ifdef DEBUG
+			Serial.println("Panning left...");
+#endif
+		}
+#ifdef DEBUG
+		else {
+			Serial.println("ERROR: Left limit reached.");
+		}
+#endif
+	}
+	else if (direction == right) {
+		// Moving right.
+		if ((xpos + right.nXpos) > XPOS_LOWER_LIMIT) {
+			xpos += right.nXpos;
+#ifdef DEBUG
+			Serial.println("Panning right...");
+#endif
+		}
+#ifdef DEBUG
+		else {
+			Serial.println("ERROR: Right limit reached.");
+		}
+#endif
+	}
+	else {
+		// Unknown direction.
+#ifdef DEBUG
+		Serial.print(String(direction.nCmd));
+		Serial.println(" is not a command movement command.");
+#endif
+		return;
+	}
+
+	servoX.write(xpos);
+	servoY.write(ypos);
+#ifdef DEBUG
+	Serial.println("New position X:" + String(xpos) + ",Y:" + String(ypos));
+#endif
+}
+
+/**
  * Initialize host device and setup program.
  */
 void setup() {
+	// Initialize movement coordinates.
+	up.nCmd = 1;
+	up.nXpos = 0;
+	up.nYpos = -10;
+	down.nCmd = 2;
+	down.nXpos = 0;
+	down.nYpos = 10;
+	center.nCmd = 3;
+	center.nXpos = XPOS_CENTER;
+	center.nYpos = YPOS_CENTER;
+	left.nCmd = 4;
+	left.nXpos = 10;
+	left.nYpos = 0;
+	right.nCmd = 5;
+	right.nXpos = -10;
+	right.nYpos = 0;
+
 	// Configure SPI select pin for SD card as outputs and make device inactive
 	// to gaurantee init success.
 	pinMode(SD_CS_PIN, OUTPUT);
@@ -348,7 +560,7 @@ void setup() {
  */
 void loop() {
 	// Listen for incoming client connections.
-	EthernetClient client = server.available();
+	client = server.available();
 	if (client) {
 #ifdef DEBUG
 		Serial.println("New client connected.");
