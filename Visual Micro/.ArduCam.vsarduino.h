@@ -27,8 +27,11 @@ typedef unsigned char byte;
 extern "C" void __cxa_pure_virtual() {;}
 
 void statusLedSDErrorFlash();
+void statusLedNetworkWarnFlash();
 void setNetworkDefaults();
 void readConfig();
+void initNetwork();
+void initServos();
 //
 //
 
