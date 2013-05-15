@@ -34,6 +34,9 @@ void initNetwork();
 void initServos();
 void sendHttpOkHeader();
 void respondWith404();
+void respondWithConfig();
+IPAddress getIpFromString(const char* str);
+void userChangeConfig(char *line);
 void respondWithPage(const char *pagePath);
 void moveServos(Coordinates direction);
 //

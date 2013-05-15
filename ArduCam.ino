@@ -22,6 +22,7 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 
+//#include <StringUtils.h>
 #include <Servo.h>
 #include <IniFile.h>
 #include <SPI.h>
@@ -83,7 +84,7 @@ const char *CONFIG_KEY_PORT = "Port";
 IPAddress ip;
 IPAddress gateway;
 IPAddress subnetmask;
-IPAddress dns;
+IPAddress client_dns;
 EthernetServer server;
 EthernetClient client;
 Servo servoX;
@@ -98,7 +99,7 @@ int ypos = YPOS_CENTER;
  * @member nXpos The X-axis position.
  * @member nYpos The Y-axis position.
  */
-typedef struct
+struct Coordinates
 {
 	int nCmd;
 	int nXpos;
@@ -106,7 +107,7 @@ typedef struct
 	bool operator ==(const Coordinates &rhs) const {
 		return ((rhs.nXpos == nXpos) && (rhs.nYpos == nYpos) && (rhs.nCmd == nCmd));
 	};
-} Coordinates;
+};
 
 // Movement directions.
 Coordinates up;
@@ -197,7 +198,7 @@ void setNetworkDefaults() {
 	ip = DEFAULT_IP;
 	gateway = DEFAULT_GW;
 	subnetmask = DEFAULT_SN;
-	dns = DEFAULT_DNS;
+	client_dns = DEFAULT_DNS;
 	statusLedNetworkWarnFlash();
 }
 
@@ -278,7 +279,7 @@ void readConfig() {
 	}
 
 	if (ini.getIPAddress(CONFIG_SECTION_MAIN, CONFIG_KEY_DNS, buffer, BUFFERLEN, temp)) {
-		dns = temp;
+		client_dns = temp;
 	}
 	else {
 #ifdef DEBUG
@@ -356,6 +357,8 @@ void sendHttpOkHeader() {
 	if (client) {
 		String header = "HTTP/1.0 200 OK\nServer: arduino\nContent-Type: text/html\n\n";
 		client.println(header);
+		header.~String();
+		header = NULL;
 	}
 }
 
@@ -394,7 +397,65 @@ void respondWith404() {
 
 		client.println(content);
 		client.flush();
+		content.~String();
+		content = NULL;
 	}
+}
+
+/**
+ *
+ */
+void respondWithConfig() {
+	sendHttpOkHeader();
+	if (client) {
+		String content = "<html><head><h3>ArduCam Configuration</h3></head>";
+		content.concat("<body><form method=\"get\">IP Address: ");
+		content.concat("<input type=\"text\" name=\"ip\" value=\"" + String(ip) + "\"><br>");
+		content.concat("Subnet mask: <input type=\"text\" name=\"sn\" value=\"" + String(subnetmask) + "\"><br>");
+		content.concat("Gateway: <input type=\"text\" name=\"gw\" value=\"" + String(gateway) + "\"><br>");
+		content.concat("DNS: <input type=\"text\" name=\"dns\" value=\"" + String(dns) + "\"><br>");
+		content.concat("Port: <input type=\"text\" name=\"port\" value=\"" + String(serverPort) + "\">");
+		content.concat("<input type=\"submit\" value=\"Apply\">");
+		content.concat("</form></body></html>");
+		client.println(content);
+		client.flush();
+		content.~String();
+		content = NULL;
+	}
+}
+
+IPAddress getIpFromString(const char* str) {
+	IPAddress ip(0,0,0,0);
+	int i = 0;
+	char *cp = const_cast<char*>(str);
+	while ((*cp != '\0') && (i < 4)) {
+		if (*cp == '.') {
+			i++;
+			cp++;
+			continue;
+		}
+
+		if (isdigit(*cp)) {
+			ip[i] *= 10;
+			ip[i] += (*cp - '0');
+		}
+		else {
+			ip = IPAddress(0,0,0,0);
+			break;
+		}
+		cp++;
+	}
+	return ip;
+}
+
+void userChangeConfig(char *line) {
+	IPAddress none(0,0,0,0);
+	char *found = strstr(line, "?ip=");
+	if (found) {
+		found += 4;
+		
+	}
+	delete found;
 }
 
 /**
@@ -421,6 +482,8 @@ void respondWithPage(const char *pagePath) {
 			f.close();
 			client.println(content);
 			client.flush();
+			content.~String();
+			content = NULL;
 		}
 	}
 }
@@ -578,11 +641,8 @@ void loop() {
 
 				if (c == '\n') {
 					if (readString.length() > 0) {
-						sx = readString.substring(7, 11).toInt();
-						sy = readString.substring(12, 16).toInt();
-						servoX.writeMicroseconds(sx);
-						servoY.writeMicroseconds(sy);
-
+						
+						
 						readString = "";
 					}
 				}
